@@ -69,6 +69,31 @@ android {
             )
         }
 
+        // Internal builds of the asiniscalchi fork: own package (coexists with the
+        // official app) and own signing key, kept outside the repository.
+        create("internal") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            resValue("string", "app_name", "$appName AS")
+            applicationIdSuffix = ".as"
+            versionNameSuffix = "-as$gitHash"
+            val signingFile =
+                file(
+                    providers.gradleProperty("rushAsSigning").orNull
+                        ?: "${System.getProperty("user.home")}/.config/rush-signing/keystore.properties"
+                )
+            if (signingFile.exists()) {
+                val p = Properties().apply { signingFile.inputStream().use { load(it) } }
+                signingConfig =
+                    signingConfigs.create("internal") {
+                        storeFile = signingFile.parentFile.resolve(p.getProperty("storeFile"))
+                        storePassword = p.getProperty("storePassword")
+                        keyAlias = p.getProperty("keyAlias")
+                        keyPassword = p.getProperty("keyPassword")
+                    }
+            }
+        }
+
         debug {
             applicationIdSuffix = ".debug"
             resValue("string", "app_name", "$appName Debug")
