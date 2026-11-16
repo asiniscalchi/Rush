@@ -27,7 +27,6 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +57,7 @@ import androidx.compose.material3.IconButtonShapes
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -92,13 +92,15 @@ import com.shub39.rush.shared.core.dataclasses.SongUi
 import com.shub39.rush.shared.core.enums.CardColors
 import com.shub39.rush.shared.core.enums.LyricsAlignment
 import com.shub39.rush.shared.core.enums.LyricsBackground
+import com.shub39.rush.shared.ui.LocalWindowSizeClass
+import com.shub39.rush.shared.ui.LyricsMaxWidth
 import com.shub39.rush.shared.ui.RushPreviewWrapper
+import com.shub39.rush.shared.ui.WindowSize.Companion.isLyricsPortrait
 import com.shub39.rush.shared.ui.audioDependentBackgrounds
 import com.shub39.rush.shared.ui.component.ArtFromUrl
 import com.shub39.rush.shared.ui.component.Empty
 import com.shub39.rush.shared.ui.component.PageFill
 import com.shub39.rush.shared.ui.conditional
-import com.shub39.rush.shared.ui.fadeBottomToTop
 import com.shub39.rush.shared.ui.fadeTopToBottom
 import com.shub39.rush.shared.ui.glowBackground
 import com.shub39.rush.shared.ui.lyrics.ApplyLyricsBackground
@@ -121,6 +123,9 @@ import com.shub39.rush.shared.ui.lyrics.getCardColors
 import com.shub39.rush.shared.ui.lyrics.getHypnoticColors
 import com.shub39.rush.shared.ui.lyrics.getWaveColors
 import com.shub39.rush.shared.ui.lyrics.rushOverlayClearance
+import com.shub39.rush.shared.ui.navigation.getImageBoundsTransform
+import com.shub39.rush.shared.ui.navigation.getTextBoundsTransform
+import com.shub39.rush.shared.ui.navigation.rushSharedBounds
 import com.shub39.rush.shared.ui.rushmode.RushPhase
 import com.shub39.rush.shared.ui.rushmode.RushState
 import com.shub39.rush.shared.ui.session.SessionState
@@ -160,6 +165,7 @@ fun LyricsPageContent(
 ) =
     PageFill(modifier = modifier) {
         val lazyListState = rememberLazyListState()
+        val windowSizeClass = LocalWindowSizeClass.current
 
         val (cardBackground, cardContent) = getCardColors(state)
         val (hypnoticColor1, hypnoticColor2) = getHypnoticColors(state)
@@ -167,7 +173,6 @@ fun LyricsPageContent(
 
         var controlsVisible by remember { mutableStateOf(true) }
         var interactionCount by remember { mutableIntStateOf(0) }
-        val controlsAlpha by animateFloatAsState(targetValue = if (controlsVisible) 1f else 0f)
 
         val glowMultiplier by
             animateFloatAsState(
@@ -229,7 +234,7 @@ fun LyricsPageContent(
         }
 
         // Content Start
-        BoxWithConstraints(
+        Box(
             modifier =
                 Modifier.fillMaxSize().keepScreenOn().pointerInput(Unit) {
                     awaitPointerEventScope {
@@ -242,7 +247,7 @@ fun LyricsPageContent(
                 }
         ) {
             Card(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().rushSharedBounds("lyrics_card_container"),
                 colors =
                     CardDefaults.cardColors(
                         containerColor = cardBackground,
@@ -298,41 +303,20 @@ fun LyricsPageContent(
                                     hypnoticColor2 = hypnoticColor2,
                                 )
 
-                                Column(modifier = Modifier.widthIn(max = 1100.dp)) {
-                                    if (this@BoxWithConstraints.maxWidth < 640.dp) {
+                                Column(modifier = Modifier.widthIn(max = LyricsMaxWidth)) {
+                                    if (windowSizeClass.isLyricsPortrait()) {
                                         // portrait ui
                                         Box(
                                             modifier = Modifier.fillMaxWidth(),
                                             contentAlignment = Alignment.Center,
                                         ) {
-                                            Column(modifier = Modifier.align(Alignment.TopCenter)) {
-                                                AnimatedVisibility(
-                                                    visible =
-                                                        !state.sync &&
-                                                            !state.fitToScreen &&
-                                                            top > 2 &&
-                                                            state.lyricsBackground !=
-                                                                LyricsBackground.ALBUM_ART
-                                                ) {
-                                                    ArtFromUrl(
-                                                        imageUrl = lyricsState.song.artUrl!!,
-                                                        highlightColor = cardContent,
-                                                        baseColor = Color.Transparent,
-                                                        modifier =
-                                                            Modifier.fillMaxWidth()
-                                                                .height(120.dp)
-                                                                .fadeBottomToTop(),
-                                                    )
-                                                }
-                                            }
-
                                             Column(
                                                 modifier =
                                                     Modifier.fillMaxWidth()
                                                         .padding(
                                                             start = 16.dp,
                                                             end = 16.dp,
-                                                            top = 48.dp,
+                                                            top = 36.dp,
                                                         ),
                                                 horizontalAlignment = lyricsAlignment,
                                             ) {
@@ -352,7 +336,11 @@ fun LyricsPageContent(
                                                             baseColor = Color.Transparent,
                                                             contentScale = ContentScale.Crop,
                                                             modifier =
-                                                                Modifier.size(80.dp)
+                                                                Modifier.rushSharedBounds(
+                                                                        "song_art_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                        getImageBoundsTransform(),
+                                                                    )
+                                                                    .size(80.dp)
                                                                     .aspectRatio(1f)
                                                                     .clip(
                                                                         MaterialTheme.shapes.small
@@ -369,7 +357,13 @@ fun LyricsPageContent(
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
                                                     modifier =
-                                                        Modifier.padding(top = 8.dp).basicMarquee(),
+                                                        Modifier.rushSharedBounds(
+                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                boundsTransform =
+                                                                    getTextBoundsTransform(),
+                                                            )
+                                                            .padding(top = 8.dp)
+                                                            .basicMarquee(),
                                                 )
 
                                                 Text(
@@ -378,28 +372,37 @@ fun LyricsPageContent(
                                                     fontFamily = flexFontRounded(),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.basicMarquee(),
+                                                    modifier =
+                                                        Modifier.rushSharedBounds(
+                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                boundsTransform =
+                                                                    getTextBoundsTransform(),
+                                                            )
+                                                            .basicMarquee(),
                                                 )
 
                                                 // Actions Row
-                                                Row(
-                                                    modifier =
-                                                        Modifier.alpha(controlsAlpha)
-                                                            .padding(vertical = 8.dp)
-                                                            .animateContentSize()
-                                                            .horizontalScroll(rememberScrollState())
-                                                ) {
-                                                    Actions(
-                                                        state = actionsState,
-                                                        action = action,
-                                                        notificationAccess = notificationAccess,
-                                                        cardBackground = cardBackground,
-                                                        cardContent = cardContent,
-                                                        onShare = onShare,
-                                                        onEdit = onNavigateToCustomisations,
-                                                        isCustomisationsOpened =
-                                                            isCustomisationsOpened,
-                                                    )
+                                                AnimatedVisibility(visible = controlsVisible) {
+                                                    Row(
+                                                        modifier =
+                                                            Modifier.padding(vertical = 8.dp)
+                                                                .animateContentSize()
+                                                                .horizontalScroll(
+                                                                    rememberScrollState()
+                                                                )
+                                                    ) {
+                                                        Actions(
+                                                            state = actionsState,
+                                                            action = action,
+                                                            notificationAccess = notificationAccess,
+                                                            cardBackground = cardBackground,
+                                                            cardContent = cardContent,
+                                                            onShare = onShare,
+                                                            onEdit = onNavigateToCustomisations,
+                                                            isCustomisationsOpened =
+                                                                isCustomisationsOpened,
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -447,26 +450,28 @@ fun LyricsPageContent(
                                         Row(
                                             modifier =
                                                 Modifier.fillMaxSize()
-                                                    .padding(start = 32.dp, end = 16.dp),
+                                                    .padding(start = 36.dp, end = 16.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                                         ) {
-                                            Column(
-                                                modifier =
-                                                    Modifier.alpha(controlsAlpha)
-                                                        .animateContentSize()
-                                                        .verticalScroll(rememberScrollState())
-                                            ) {
-                                                Actions(
-                                                    state = actionsState,
-                                                    action = action,
-                                                    notificationAccess = notificationAccess,
-                                                    cardBackground = cardBackground,
-                                                    cardContent = cardContent,
-                                                    onShare = onShare,
-                                                    onEdit = onNavigateToCustomisations,
-                                                    isCustomisationsOpened = isCustomisationsOpened,
-                                                )
+                                            AnimatedVisibility(visible = controlsVisible) {
+                                                Column(
+                                                    modifier =
+                                                        Modifier.animateContentSize()
+                                                            .verticalScroll(rememberScrollState())
+                                                ) {
+                                                    Actions(
+                                                        state = actionsState,
+                                                        action = action,
+                                                        notificationAccess = notificationAccess,
+                                                        cardBackground = cardBackground,
+                                                        cardContent = cardContent,
+                                                        onShare = onShare,
+                                                        onEdit = onNavigateToCustomisations,
+                                                        isCustomisationsOpened =
+                                                            isCustomisationsOpened,
+                                                    )
+                                                }
                                             }
 
                                             Column(
@@ -481,7 +486,11 @@ fun LyricsPageContent(
                                                     baseColor = Color.Transparent,
                                                     contentScale = ContentScale.Fit,
                                                     modifier =
-                                                        Modifier.fillMaxWidth(0.8f)
+                                                        Modifier.rushSharedBounds(
+                                                                "song_art_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                getImageBoundsTransform(),
+                                                            )
+                                                            .fillMaxWidth(0.8f)
                                                             .aspectRatio(1f)
                                                             .clip(MaterialTheme.shapes.large),
                                                 )
@@ -496,7 +505,12 @@ fun LyricsPageContent(
                                                         ),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.basicMarquee(),
+                                                    modifier =
+                                                        Modifier.rushSharedBounds(
+                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                getTextBoundsTransform(),
+                                                            )
+                                                            .basicMarquee(),
                                                 )
 
                                                 Text(
@@ -507,7 +521,12 @@ fun LyricsPageContent(
                                                         ),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.basicMarquee(),
+                                                    modifier =
+                                                        Modifier.rushSharedBounds(
+                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                getTextBoundsTransform(),
+                                                            )
+                                                            .basicMarquee(),
                                                 )
                                             }
 
@@ -567,9 +586,12 @@ fun LyricsPageContent(
 
             Column(
                 modifier =
-                    Modifier.alpha(controlsAlpha)
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = RushOverlayBottomPadding),
+                    Modifier.align(Alignment.BottomCenter)
+                        .padding(bottom = RushOverlayBottomPadding)
+                        .animateFloatingActionButton(
+                            visible = controlsVisible,
+                            alignment = Alignment.Center,
+                        ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

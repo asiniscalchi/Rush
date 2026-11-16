@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.geometry.Offset
@@ -59,7 +60,7 @@ private const val COLUMNS = 3
 private const val WOBBLE = 0.12f
 
 /** Duration of one seamless animation loop. */
-private const val LOOP_MILLIS = 18_000
+private const val LOOP_MILLIS = 60_000
 
 /** Phase used when the animation is disabled, so the frozen frame still looks composed. */
 private const val STATIC_PHASE = 0.17f
@@ -142,7 +143,7 @@ fun HypnoticVisualizer(
             }
         }
 
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier, contentAlignment = AbsoluteAlignment.TopLeft) {
         if (constraints.hasBoundedWidth && constraints.hasBoundedHeight) {
             Box(
                 modifier =
