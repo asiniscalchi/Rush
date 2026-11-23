@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.5.2
+- Improved Non-Lyrics UIs with Progressive Blur App Bars (Android 13+)
+
+## 7.5.1
+- Updated Translations
+- Miscellaneous UI fixes
+- Fixed Desktop Builds by @Irgendeinwer
+- Improved search sheet UX by @a-mandala
+
 ## 7.5.0
 - Fixed mismatches between landscsape and portrait versions of screens
 - Fixed Share Cards appearing minimized
