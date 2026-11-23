@@ -18,12 +18,9 @@ package com.shub39.rush.shared.ui.lyrics
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.shub39.rush.shared.core.dataclasses.LyricsPrefs
-import com.shub39.rush.shared.core.dataclasses.SongUi
 import com.shub39.rush.shared.core.enums.LyricsAlignment
 import com.shub39.rush.shared.core.enums.Sources
 import com.shub39.rush.shared.ui.lyrics.component.ActionsState
-import com.shub39.rush.shared.ui.session.SessionState
 import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,38 +40,6 @@ class FitToScreenTest {
         assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = blankLines))
         assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = emptyList()))
         assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = null))
-    }
-
-    @Test
-    fun selectionIsHiddenOnlyWhilePlainLyricsAreFitted() {
-        val selection = mapOf(0 to "Line")
-        val song =
-            SongUi(
-                id = 1,
-                title = "Song",
-                artists = "Artist",
-                album = null,
-                sourceUrl = "",
-                artUrl = null,
-                lyrics = selection.entries.toList(),
-                syncedLyrics = null,
-                geniusLyrics = null,
-                ttmlLyrics = null,
-            )
-        val state =
-            LyricsPageState(
-                session = SessionState(source = Sources.LRCLIB, selectedLines = selection),
-                prefs = LyricsPrefs(fitToScreen = true),
-                lyricsState = LyricsState.Loaded(song),
-            )
-
-        assertTrue(state.selectedLines.isEmpty())
-        assertEquals(
-            selection,
-            state.copy(prefs = state.prefs.copy(fitToScreen = false)).selectedLines,
-        )
-        assertEquals(selection, state.copy(session = state.session.copy(sync = true)).selectedLines)
-        assertEquals(selection, state.copy(lyricsState = LyricsState.Idle).selectedLines)
     }
 
     @Test

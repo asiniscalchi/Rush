@@ -200,10 +200,12 @@ fun LyricsPageContent(
             remember(state.textPrefs.lyricsAlignment) {
                 state.textPrefs.lyricsAlignment.toAlignment()
             }
+        // Landscape still shows Actions while fitting, before the selection clear takes effect.
+        val actionSelectedLines = if (state.isFitting) emptyMap() else state.selectedLines
         val actionsState =
             remember(
                 loadedSong,
-                state.selectedLines,
+                actionSelectedLines,
                 state.source,
                 state.syncedAvailable,
                 state.sync,
@@ -212,7 +214,7 @@ fun LyricsPageContent(
             ) {
                 ActionsState(
                     song = loadedSong,
-                    selectedLines = state.selectedLines,
+                    selectedLines = actionSelectedLines,
                     source = state.source,
                     syncedAvailable = state.syncedAvailable,
                     sync = state.sync,
