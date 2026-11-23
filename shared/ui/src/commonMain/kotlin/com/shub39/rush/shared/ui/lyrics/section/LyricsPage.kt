@@ -124,6 +124,8 @@ import com.shub39.rush.shared.ui.lyrics.component.SyllableSyncedLyrics
 import com.shub39.rush.shared.ui.lyrics.getCardColors
 import com.shub39.rush.shared.ui.lyrics.getHypnoticColors
 import com.shub39.rush.shared.ui.lyrics.getWaveColors
+import com.shub39.rush.shared.ui.lyrics.isFittingPlainLyrics
+import com.shub39.rush.shared.ui.lyrics.plainLines
 import com.shub39.rush.shared.ui.lyrics.rushOverlayClearance
 import com.shub39.rush.shared.ui.navigation.getImageBoundsTransform
 import com.shub39.rush.shared.ui.navigation.getTextBoundsTransform
@@ -307,9 +309,16 @@ fun LyricsPageContent(
 
                                 Column(modifier = Modifier.widthIn(max = LyricsMaxWidth)) {
                                     if (windowSizeClass.isLyricsPortrait()) {
-                                        // Keep the fitted lyrics' available height stable as
-                                        // controls auto-hide and the lyrics scroll.
-                                        if (state.fitToScreen) {
+                                        // Keep the fitted height stable and the fit escape hatch
+                                        // always visible, independent of controlsVisible and
+                                        // hideUI.
+                                        if (
+                                            isFittingPlainLyrics(
+                                                state.fitToScreen,
+                                                state.sync,
+                                                loadedSong?.plainLines(state.source),
+                                            )
+                                        ) {
                                             CompactLyricsHeader(
                                                 song = lyricsState.song,
                                                 action = action,
@@ -466,9 +475,7 @@ fun LyricsPageContent(
                                         ) {
                                             val visible by
                                                 animateFloatAsState(
-                                                    targetValue =
-                                                        if (controlsVisible || state.fitToScreen) 1f
-                                                        else 0f
+                                                    targetValue = if (controlsVisible) 1f else 0f
                                                 )
                                             Column(
                                                 modifier =
@@ -827,6 +834,7 @@ private fun CompactLyricsHeader(
                 fontFamily = flexFontRounded(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // The 48 dp cap may clip the title at very large font scales.
                 modifier = Modifier.weight(1f).heightIn(max = toggleSize),
             )
             FitToScreenToggle(

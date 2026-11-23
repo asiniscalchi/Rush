@@ -19,6 +19,17 @@ package com.shub39.rush.shared.ui.lyrics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
+import com.shub39.rush.shared.core.dataclasses.SongUi
+import com.shub39.rush.shared.core.enums.Sources
+
+internal fun SongUi.plainLines(source: Sources) =
+    if (source == Sources.LRCLIB) lyrics else geniusLyrics
+
+internal fun isFittingPlainLyrics(
+    fitToScreen: Boolean,
+    sync: Boolean,
+    lines: Collection<Map.Entry<Int, String>>?,
+): Boolean = fitToScreen && !sync && lines?.any { it.value.isNotBlank() } == true
 
 /** Smallest size fit to screen goes down to, below this the lyrics scroll instead. */
 const val FIT_MIN_FONT_SIZE = 14f

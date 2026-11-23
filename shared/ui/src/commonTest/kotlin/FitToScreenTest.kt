@@ -30,6 +30,19 @@ import kotlin.test.assertTrue
 
 class FitToScreenTest {
     @Test
+    fun fitsOnlyWhenEnabledWithNonBlankPlainLyrics() {
+        val lines = mapOf(0 to " ", 1 to "Line").entries
+        val blankLines = mapOf(0 to " ", 1 to "").entries
+
+        assertTrue(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = false, sync = false, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = true, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = blankLines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = emptyList()))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = null))
+    }
+
+    @Test
     fun activeFitToggleRemainsAvailableWithSelectionOrSync() {
         val actions =
             ActionsState(

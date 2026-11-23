@@ -87,8 +87,10 @@ import com.shub39.rush.shared.ui.lyrics.TextPrefs
 import com.shub39.rush.shared.ui.lyrics.fitBottomPadding
 import com.shub39.rush.shared.ui.lyrics.fitLineHeight
 import com.shub39.rush.shared.ui.lyrics.fitViewport
+import com.shub39.rush.shared.ui.lyrics.isFittingPlainLyrics
 import com.shub39.rush.shared.ui.lyrics.largestFittingFontSize
 import com.shub39.rush.shared.ui.lyrics.linesFitHeight
+import com.shub39.rush.shared.ui.lyrics.plainLines
 import com.shub39.rush.shared.ui.lyrics.scaledToFontSize
 import com.shub39.rush.shared.ui.lyrics.updateSelectedLines
 import com.shub39.rush.shared.ui.toAlignment
@@ -111,7 +113,7 @@ fun PlainLyrics(
     fitOverlayClearance: Dp = 0.dp,
 ) {
     val song = (state.lyricsState as? LyricsState.Loaded)?.song ?: return
-    val items = if (state.source == Sources.LRCLIB) song.lyrics else song.geniusLyrics
+    val items = song.plainLines(state.source)
     val nonEmptyItems = remember(items) { items?.filter { it.value.isNotBlank() } ?: emptyList() }
     val shouldAutoFetch =
         state.source == Sources.GENIUS &&
@@ -131,7 +133,7 @@ fun PlainLyrics(
             state.source == Sources.GENIUS -> song.romanizedGeniusLyrics
             else -> song.romanizedLyrics
         }
-    val fitting = state.fitToScreen && nonEmptyItems.isNotEmpty()
+    val fitting = isFittingPlainLyrics(state.fitToScreen, state.sync, items)
 
     BoxWithConstraints(modifier = modifier) {
         val fitPadding = fitContentPadding(fitInsets, fitOverlayClearance)
