@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -115,6 +116,7 @@ import com.shub39.rush.shared.ui.lyrics.component.Actions
 import com.shub39.rush.shared.ui.lyrics.component.ActionsState
 import com.shub39.rush.shared.ui.lyrics.component.ErrorCard
 import com.shub39.rush.shared.ui.lyrics.component.FetchingCard
+import com.shub39.rush.shared.ui.lyrics.component.FitToScreenToggle
 import com.shub39.rush.shared.ui.lyrics.component.LineSyncedLyrics
 import com.shub39.rush.shared.ui.lyrics.component.LrcCorrectDialog
 import com.shub39.rush.shared.ui.lyrics.component.PlainLyrics
@@ -305,28 +307,32 @@ fun LyricsPageContent(
 
                                 Column(modifier = Modifier.widthIn(max = LyricsMaxWidth)) {
                                     if (windowSizeClass.isLyricsPortrait()) {
-                                        // portrait ui
-                                        Box(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Column(
-                                                modifier =
-                                                    Modifier.fillMaxWidth()
-                                                        .padding(
-                                                            start = 16.dp,
-                                                            end = 16.dp,
-                                                            top = 36.dp,
-                                                        ),
-                                                horizontalAlignment = lyricsAlignment,
+                                        // Keep the fitted lyrics' available height stable as
+                                        // controls auto-hide and the lyrics scroll.
+                                        if (state.fitToScreen) {
+                                            CompactLyricsHeader(
+                                                song = lyricsState.song,
+                                                action = action,
+                                                cardBackground = cardBackground,
+                                                cardContent = cardContent,
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentAlignment = Alignment.Center,
                                             ) {
-                                                Spacer(modifier = Modifier.height(20.dp))
+                                                Column(
+                                                    modifier =
+                                                        Modifier.fillMaxWidth()
+                                                            .padding(
+                                                                start = 16.dp,
+                                                                end = 16.dp,
+                                                                top = 36.dp,
+                                                            ),
+                                                    horizontalAlignment = lyricsAlignment,
+                                                ) {
+                                                    Spacer(modifier = Modifier.height(20.dp))
 
-                                                // Not animated while fitting, every frame of the
-                                                // animation would change the space for the lyrics.
-                                                // Hiding it regardless of the scroll position also
-                                                // stops scrolling from changing that space.
-                                                if (!state.fitToScreen) {
                                                     AnimatedVisibility(
                                                         visible = top <= 2 && !state.sync
                                                     ) {
@@ -347,61 +353,65 @@ fun LyricsPageContent(
                                                                     ),
                                                         )
                                                     }
-                                                }
 
-                                                Text(
-                                                    text = lyricsState.song.title,
-                                                    style =
-                                                        MaterialTheme.typography.headlineMedium
-                                                            .copy(fontFamily = flexFontRounded()),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .padding(top = 8.dp)
-                                                            .basicMarquee(),
-                                                )
-
-                                                Text(
-                                                    text = lyricsState.song.artists,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontFamily = flexFontRounded(),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .basicMarquee(),
-                                                )
-
-                                                // Actions Row
-                                                AnimatedVisibility(visible = controlsVisible) {
-                                                    Row(
+                                                    Text(
+                                                        text = lyricsState.song.title,
+                                                        style =
+                                                            MaterialTheme.typography.headlineMedium
+                                                                .copy(
+                                                                    fontFamily = flexFontRounded()
+                                                                ),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
                                                         modifier =
-                                                            Modifier.padding(vertical = 8.dp)
-                                                                .animateContentSize()
-                                                                .horizontalScroll(
-                                                                    rememberScrollState()
+                                                            Modifier.rushSharedBounds(
+                                                                    "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                    boundsTransform =
+                                                                        getTextBoundsTransform(),
                                                                 )
-                                                    ) {
-                                                        Actions(
-                                                            state = actionsState,
-                                                            action = action,
-                                                            notificationAccess = notificationAccess,
-                                                            cardBackground = cardBackground,
-                                                            cardContent = cardContent,
-                                                            onShare = onShare,
-                                                            onEdit = onNavigateToCustomisations,
-                                                            isCustomisationsOpened =
-                                                                isCustomisationsOpened,
-                                                        )
+                                                                .padding(top = 8.dp)
+                                                                .basicMarquee(),
+                                                    )
+
+                                                    Text(
+                                                        text = lyricsState.song.artists,
+                                                        style =
+                                                            MaterialTheme.typography.titleMedium,
+                                                        fontFamily = flexFontRounded(),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier =
+                                                            Modifier.rushSharedBounds(
+                                                                    "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                    boundsTransform =
+                                                                        getTextBoundsTransform(),
+                                                                )
+                                                                .basicMarquee(),
+                                                    )
+
+                                                    // Actions Row
+                                                    AnimatedVisibility(visible = controlsVisible) {
+                                                        Row(
+                                                            modifier =
+                                                                Modifier.padding(vertical = 8.dp)
+                                                                    .animateContentSize()
+                                                                    .horizontalScroll(
+                                                                        rememberScrollState()
+                                                                    )
+                                                        ) {
+                                                            Actions(
+                                                                state = actionsState,
+                                                                action = action,
+                                                                notificationAccess =
+                                                                    notificationAccess,
+                                                                cardBackground = cardBackground,
+                                                                cardContent = cardContent,
+                                                                onShare = onShare,
+                                                                onEdit = onNavigateToCustomisations,
+                                                                isCustomisationsOpened =
+                                                                    isCustomisationsOpened,
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -456,7 +466,9 @@ fun LyricsPageContent(
                                         ) {
                                             val visible by
                                                 animateFloatAsState(
-                                                    targetValue = if (controlsVisible) 1f else 0f
+                                                    targetValue =
+                                                        if (controlsVisible || state.fitToScreen) 1f
+                                                        else 0f
                                                 )
                                             Column(
                                                 modifier =
@@ -797,6 +809,43 @@ fun LyricsPageContent(
             )
         }
     }
+
+@Composable
+private fun CompactLyricsHeader(
+    song: SongUi,
+    action: (LyricsPageAction) -> Unit,
+    cardBackground: Color,
+    cardContent: Color,
+) {
+    val toggleSize = 48.dp
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 36.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = song.title,
+                // The biggest style whose line height still fits within the toggle.
+                style = MaterialTheme.typography.headlineSmall,
+                fontFamily = flexFontRounded(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).heightIn(max = toggleSize),
+            )
+            FitToScreenToggle(
+                checked = true,
+                action = action,
+                cardBackground = cardBackground,
+                cardContent = cardContent,
+                modifier = Modifier.size(toggleSize),
+            )
+        }
+        Text(
+            text = song.artists,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = flexFontRounded(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 @PreviewWrapper(RushPreviewWrapper::class)
 @PreviewScreenSizes

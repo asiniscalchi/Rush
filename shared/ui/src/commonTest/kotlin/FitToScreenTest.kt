@@ -19,6 +19,8 @@ package com.shub39.rush.shared.ui.lyrics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.shub39.rush.shared.core.enums.LyricsAlignment
+import com.shub39.rush.shared.core.enums.Sources
+import com.shub39.rush.shared.ui.lyrics.component.ActionsState
 import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +29,28 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FitToScreenTest {
+    @Test
+    fun activeFitToggleRemainsAvailableWithSelectionOrSync() {
+        val actions =
+            ActionsState(
+                song = null,
+                selectedLines = emptyMap(),
+                source = Sources.LRCLIB,
+                syncedAvailable = true,
+                sync = false,
+                rushEnabled = false,
+                fitToScreen = false,
+            )
+        val selected = actions.copy(selectedLines = mapOf(0 to "Line"))
+        val synced = actions.copy(sync = true)
+
+        assertTrue(actions.showFitToggle)
+        assertFalse(selected.showFitToggle)
+        assertFalse(synced.showFitToggle)
+        assertTrue(selected.copy(fitToScreen = true).showFitToggle)
+        assertTrue(synced.copy(fitToScreen = true).showFitToggle)
+    }
+
     @Test
     fun picksTheLargestSizeThatFits() {
         val size = largestFittingFontSize(min = 16f, max = 128f, step = 0.5f) { it <= 41.5f }

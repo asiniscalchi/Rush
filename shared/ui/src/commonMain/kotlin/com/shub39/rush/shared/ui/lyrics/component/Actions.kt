@@ -47,7 +47,10 @@ data class ActionsState(
     val sync: Boolean,
     val rushEnabled: Boolean,
     val fitToScreen: Boolean,
-)
+) {
+    internal val showFitToggle: Boolean
+        get() = fitToScreen || (!sync && selectedLines.isEmpty())
+}
 
 @Composable
 fun Actions(
@@ -165,21 +168,8 @@ fun Actions(
         }
     }
 
-    if (!state.sync && state.selectedLines.isEmpty()) {
-        IconToggleButton(
-            checked = state.fitToScreen,
-            onCheckedChange = { action(LyricsPageAction.OnFitToScreenToggle(it)) },
-            colors =
-                IconButtonDefaults.iconToggleButtonColors(
-                    checkedContentColor = cardBackground,
-                    checkedContainerColor = cardContent,
-                ),
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.fit_screen),
-                contentDescription = stringResource(Res.string.fit_to_screen),
-            )
-        }
+    if (state.showFitToggle) {
+        FitToScreenToggle(state.fitToScreen, action, cardBackground, cardContent)
     }
 
     if (notificationAccess) {
@@ -213,5 +203,30 @@ fun Actions(
         IconButton(onClick = { action(LyricsPageAction.OnChangeSelectedLines(emptyMap())) }) {
             Icon(painter = painterResource(Res.drawable.close), contentDescription = null)
         }
+    }
+}
+
+@Composable
+internal fun FitToScreenToggle(
+    checked: Boolean,
+    action: (LyricsPageAction) -> Unit,
+    cardBackground: Color,
+    cardContent: Color,
+    modifier: Modifier = Modifier,
+) {
+    IconToggleButton(
+        checked = checked,
+        onCheckedChange = { action(LyricsPageAction.OnFitToScreenToggle(it)) },
+        modifier = modifier,
+        colors =
+            IconButtonDefaults.iconToggleButtonColors(
+                checkedContentColor = cardBackground,
+                checkedContainerColor = cardContent,
+            ),
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.fit_screen),
+            contentDescription = stringResource(Res.string.fit_to_screen),
+        )
     }
 }
