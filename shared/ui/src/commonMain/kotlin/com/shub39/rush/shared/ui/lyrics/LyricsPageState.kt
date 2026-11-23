@@ -69,16 +69,8 @@ data class LyricsPageState(
                 error?.let { LyricsState.LyricsError(errorCode = it.code, debugMessage = it.debug) }
         }
 
-    internal val isFitting: Boolean
-        get() =
-            isFittingPlainLyrics(
-                fitToScreen,
-                sync,
-                (lyricsState as? LyricsState.Loaded)?.song?.plainLines(source),
-            )
-
     val selectedLines: Map<Int, String>
-        get() = if (isFitting) emptyMap() else session.selectedLines
+        get() = session.selectedLines
 
     val source: Sources
         get() = session.source
