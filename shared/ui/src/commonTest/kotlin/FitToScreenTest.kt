@@ -18,7 +18,12 @@ package com.shub39.rush.shared.ui.lyrics
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.shub39.rush.shared.core.dataclasses.LyricsPrefs
+import com.shub39.rush.shared.core.dataclasses.SongUi
 import com.shub39.rush.shared.core.enums.LyricsAlignment
+import com.shub39.rush.shared.core.enums.Sources
+import com.shub39.rush.shared.ui.lyrics.component.ActionsState
+import com.shub39.rush.shared.ui.session.SessionState
 import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +32,73 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FitToScreenTest {
+    @Test
+    fun fitsOnlyWhenEnabledWithNonBlankPlainLyrics() {
+        val lines = mapOf(0 to " ", 1 to "Line").entries
+        val blankLines = mapOf(0 to " ", 1 to "").entries
+
+        assertTrue(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = false, sync = false, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = true, lines = lines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = blankLines))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = emptyList()))
+        assertFalse(isFittingPlainLyrics(fitToScreen = true, sync = false, lines = null))
+    }
+
+    @Test
+    fun selectionIsHiddenOnlyWhilePlainLyricsAreFitted() {
+        val selection = mapOf(0 to "Line")
+        val song =
+            SongUi(
+                id = 1,
+                title = "Song",
+                artists = "Artist",
+                album = null,
+                sourceUrl = "",
+                artUrl = null,
+                lyrics = selection.entries.toList(),
+                syncedLyrics = null,
+                geniusLyrics = null,
+                ttmlLyrics = null,
+            )
+        val state =
+            LyricsPageState(
+                session = SessionState(source = Sources.LRCLIB, selectedLines = selection),
+                prefs = LyricsPrefs(fitToScreen = true),
+                lyricsState = LyricsState.Loaded(song),
+            )
+
+        assertTrue(state.selectedLines.isEmpty())
+        assertEquals(
+            selection,
+            state.copy(prefs = state.prefs.copy(fitToScreen = false)).selectedLines,
+        )
+        assertEquals(selection, state.copy(session = state.session.copy(sync = true)).selectedLines)
+        assertEquals(selection, state.copy(lyricsState = LyricsState.Idle).selectedLines)
+    }
+
+    @Test
+    fun activeFitToggleRemainsAvailableWithSelectionOrSync() {
+        val actions =
+            ActionsState(
+                song = null,
+                selectedLines = emptyMap(),
+                source = Sources.LRCLIB,
+                syncedAvailable = true,
+                sync = false,
+                rushEnabled = false,
+                fitToScreen = false,
+            )
+        val selected = actions.copy(selectedLines = mapOf(0 to "Line"))
+        val synced = actions.copy(sync = true)
+
+        assertTrue(actions.showFitToggle)
+        assertFalse(selected.showFitToggle)
+        assertFalse(synced.showFitToggle)
+        assertTrue(selected.copy(fitToScreen = true).showFitToggle)
+        assertTrue(synced.copy(fitToScreen = true).showFitToggle)
+    }
+
     @Test
     fun picksTheLargestSizeThatFits() {
         val size = largestFittingFontSize(min = 16f, max = 128f, step = 0.5f) { it <= 41.5f }

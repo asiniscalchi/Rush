@@ -89,6 +89,7 @@ import com.shub39.rush.shared.ui.lyrics.fitLineHeight
 import com.shub39.rush.shared.ui.lyrics.fitViewport
 import com.shub39.rush.shared.ui.lyrics.largestFittingFontSize
 import com.shub39.rush.shared.ui.lyrics.linesFitHeight
+import com.shub39.rush.shared.ui.lyrics.plainLines
 import com.shub39.rush.shared.ui.lyrics.scaledToFontSize
 import com.shub39.rush.shared.ui.lyrics.updateSelectedLines
 import com.shub39.rush.shared.ui.toAlignment
@@ -111,7 +112,7 @@ fun PlainLyrics(
     fitOverlayClearance: Dp = 0.dp,
 ) {
     val song = (state.lyricsState as? LyricsState.Loaded)?.song ?: return
-    val items = if (state.source == Sources.LRCLIB) song.lyrics else song.geniusLyrics
+    val items = song.plainLines(state.source)
     val nonEmptyItems = remember(items) { items?.filter { it.value.isNotBlank() } ?: emptyList() }
     val shouldAutoFetch =
         state.source == Sources.GENIUS &&
@@ -131,7 +132,7 @@ fun PlainLyrics(
             state.source == Sources.GENIUS -> song.romanizedGeniusLyrics
             else -> song.romanizedLyrics
         }
-    val fitting = state.fitToScreen && nonEmptyItems.isNotEmpty()
+    val fitting = state.isFitting
 
     BoxWithConstraints(modifier = modifier) {
         val fitPadding = fitContentPadding(fitInsets, fitOverlayClearance)
@@ -165,8 +166,7 @@ fun PlainLyrics(
                 contentPadding =
                     if (fitting) fitPadding
                     else PaddingValues(horizontal = 16.dp, vertical = 64.dp),
-                // There is no room for the actions when the lyrics take up the whole page
-                showBottomActions = !fitting,
+                fitting = fitting,
                 lazyListState = lazyListState,
                 cardContent = cardContent,
                 action = action,
@@ -187,7 +187,7 @@ private fun PlainLyricsList(
     lineGap: Dp,
     lyricPadding: PaddingValues,
     contentPadding: PaddingValues,
-    showBottomActions: Boolean,
+    fitting: Boolean,
     lazyListState: LazyListState,
     cardContent: Color,
     action: (LyricsPageAction) -> Unit,
@@ -223,7 +223,8 @@ private fun PlainLyricsList(
                 PlainLyric(
                     entry = it.toPair(),
                     romanizedText = romanizedLyrics[it.key],
-                    containerColor = containerColor,
+                    containerColor = if (fitting) Color.Transparent else containerColor,
+                    selectionEnabled = !fitting,
                     textPrefs = textPrefs,
                     contentPadding = lyricPadding,
                     cardContent = cardContent,
@@ -334,7 +335,7 @@ private fun PlainLyricsList(
         }
 
         // Bottom Actions Row
-        if (showBottomActions)
+        if (!fitting)
             item(key = "bottom_actions", contentType = "actions") {
                 Row(
                     modifier = Modifier.padding(vertical = 100.dp).fillMaxWidth(),
@@ -387,6 +388,7 @@ fun PlainLyric(
     cardContent: Color,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = LyricPadding,
+    selectionEnabled: Boolean = true,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -394,9 +396,15 @@ fun PlainLyric(
     ) {
         Card(
             onClick = onClick,
+            enabled = selectionEnabled,
             shape = MaterialTheme.shapes.small,
             colors =
-                CardDefaults.cardColors(containerColor = containerColor, contentColor = cardContent),
+                CardDefaults.cardColors(
+                    containerColor = containerColor,
+                    contentColor = cardContent,
+                    disabledContainerColor = containerColor,
+                    disabledContentColor = cardContent,
+                ),
         ) {
             Column(
                 horizontalAlignment = textPrefs.lyricsAlignment.toAlignment(),
