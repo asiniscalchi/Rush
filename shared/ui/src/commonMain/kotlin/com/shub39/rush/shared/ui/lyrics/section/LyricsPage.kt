@@ -124,8 +124,6 @@ import com.shub39.rush.shared.ui.lyrics.component.SyllableSyncedLyrics
 import com.shub39.rush.shared.ui.lyrics.getCardColors
 import com.shub39.rush.shared.ui.lyrics.getHypnoticColors
 import com.shub39.rush.shared.ui.lyrics.getWaveColors
-import com.shub39.rush.shared.ui.lyrics.isFittingPlainLyrics
-import com.shub39.rush.shared.ui.lyrics.plainLines
 import com.shub39.rush.shared.ui.lyrics.rushOverlayClearance
 import com.shub39.rush.shared.ui.navigation.getImageBoundsTransform
 import com.shub39.rush.shared.ui.navigation.getTextBoundsTransform
@@ -223,6 +221,12 @@ fun LyricsPageContent(
                 )
             }
 
+        LaunchedEffect(state.isFitting, state.session.selectedLines) {
+            if (state.isFitting && state.session.selectedLines.isNotEmpty()) {
+                action(LyricsPageAction.OnChangeSelectedLines(emptyMap()))
+            }
+        }
+
         LaunchedEffect(songId) {
             if (songId == null) return@LaunchedEffect
             delay(100.milliseconds)
@@ -312,13 +316,7 @@ fun LyricsPageContent(
                                         // Keep the fitted height stable and the fit escape hatch
                                         // always visible, independent of controlsVisible and
                                         // hideUI.
-                                        if (
-                                            isFittingPlainLyrics(
-                                                state.fitToScreen,
-                                                state.sync,
-                                                loadedSong?.plainLines(state.source),
-                                            )
-                                        ) {
+                                        if (state.isFitting) {
                                             CompactLyricsHeader(
                                                 song = lyricsState.song,
                                                 action = action,
