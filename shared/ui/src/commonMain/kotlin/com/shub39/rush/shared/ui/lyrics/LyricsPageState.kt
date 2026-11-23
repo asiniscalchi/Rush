@@ -78,7 +78,7 @@ data class LyricsPageState(
             )
 
     val selectedLines: Map<Int, String>
-        get() = if (isFitting) emptyMap() else session.selectedLines
+        get() = session.selectedLines
 
     val source: Sources
         get() = session.source
