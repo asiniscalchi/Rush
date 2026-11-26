@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -349,59 +350,71 @@ fun LyricsPageContent(
                                                     }
                                                 }
 
-                                                Text(
-                                                    text = lyricsState.song.title,
-                                                    style =
-                                                        MaterialTheme.typography.headlineMedium
-                                                            .copy(fontFamily = flexFontRounded()),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .padding(top = 8.dp)
-                                                            .basicMarquee(),
-                                                )
-
-                                                Text(
-                                                    text = lyricsState.song.artists,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontFamily = flexFontRounded(),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .basicMarquee(),
-                                                )
-
-                                                // Actions Row
-                                                AnimatedVisibility(visible = controlsVisible) {
-                                                    Row(
-                                                        modifier =
-                                                            Modifier.padding(vertical = 8.dp)
-                                                                .animateContentSize()
-                                                                .horizontalScroll(
-                                                                    rememberScrollState()
-                                                                )
-                                                    ) {
-                                                        Actions(
-                                                            state = actionsState,
-                                                            action = action,
-                                                            notificationAccess = notificationAccess,
-                                                            cardBackground = cardBackground,
-                                                            cardContent = cardContent,
-                                                            onShare = onShare,
-                                                            onEdit = onNavigateToCustomisations,
-                                                            isCustomisationsOpened =
-                                                                isCustomisationsOpened,
+                                                Row(
+                                                    modifier = Modifier.heightIn(min = 48.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement =
+                                                        Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = lyricsState.song.title,
+                                                            style =
+                                                                MaterialTheme.typography.titleLarge
+                                                                    .copy(
+                                                                        fontFamily =
+                                                                            flexFontRounded()
+                                                                    ),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier =
+                                                                Modifier.rushSharedBounds(
+                                                                        "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                        boundsTransform =
+                                                                            getTextBoundsTransform(),
+                                                                    )
+                                                                    .basicMarquee(),
                                                         )
+
+                                                        Text(
+                                                            text = lyricsState.song.artists,
+                                                            style =
+                                                                MaterialTheme.typography.bodyMedium,
+                                                            fontFamily = flexFontRounded(),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier =
+                                                                Modifier.rushSharedBounds(
+                                                                        "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                        boundsTransform =
+                                                                            getTextBoundsTransform(),
+                                                                    )
+                                                                    .basicMarquee(),
+                                                        )
+                                                    }
+
+                                                    // Actions Row
+                                                    AnimatedVisibility(visible = controlsVisible) {
+                                                        Row(
+                                                            modifier =
+                                                                Modifier.animateContentSize()
+                                                                    .horizontalScroll(
+                                                                        rememberScrollState()
+                                                                    )
+                                                        ) {
+                                                            Actions(
+                                                                state = actionsState,
+                                                                action = action,
+                                                                notificationAccess =
+                                                                    notificationAccess,
+                                                                cardBackground = cardBackground,
+                                                                cardContent = cardContent,
+                                                                onShare = onShare,
+                                                                onEdit = onNavigateToCustomisations,
+                                                                isCustomisationsOpened =
+                                                                    isCustomisationsOpened,
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
