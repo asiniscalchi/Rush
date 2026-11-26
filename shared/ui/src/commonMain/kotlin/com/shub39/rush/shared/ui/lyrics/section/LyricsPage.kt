@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -781,7 +782,8 @@ private fun PortraitLyricsHeader(
                 .single()
                 .measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
         val actionsWidth = naturalActions.width
-        val actionsSize = Modifier.size(naturalActions.width.toDp(), naturalActions.height.toDp())
+        val actionsHeight = naturalActions.height.toDp()
+        val actionsSize = Modifier.size(actionsWidth.toDp(), actionsHeight)
         val actionsBesideTitle =
             constraints.maxWidth - actionsWidth - actionGap.roundToPx() >= MinTitleWidth.roundToPx()
         val header =
@@ -796,15 +798,23 @@ private fun PortraitLyricsHeader(
                                 Row { actions() }
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) { PortraitLyricsTitle(song) }
+                        Row(
+                            modifier = Modifier.heightIn(min = actionsHeight),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                PortraitLyricsTitle(song = song, compact = true)
+                            }
                             Spacer(Modifier.width(actionGap))
                             // Keep the title's width and the row's height stable during the fade.
                             Box(actionsSize) { fadingActions() }
                         }
                     } else {
                         Column(horizontalAlignment = lyricsAlignment) {
-                            PortraitLyricsTitle(song)
+                            PortraitLyricsTitle(song = song, compact = false)
                             AnimatedVisibility(visible = controlsVisible) {
                                 Row(
                                     modifier =
@@ -825,10 +835,17 @@ private fun PortraitLyricsHeader(
 }
 
 @Composable
-private fun PortraitLyricsTitle(song: SongUi) {
+private fun PortraitLyricsTitle(song: SongUi, compact: Boolean) {
+    // Compact fits in the 48dp action-icon row: titleLarge (28sp) + bodyMedium (20sp) = 48sp.
+    val titleStyle =
+        if (compact) MaterialTheme.typography.titleLarge
+        else MaterialTheme.typography.headlineMedium
+    val artistStyle =
+        if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium
+
     Text(
         text = song.title,
-        style = MaterialTheme.typography.headlineMedium.copy(fontFamily = flexFontRounded()),
+        style = titleStyle.copy(fontFamily = flexFontRounded()),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
@@ -836,14 +853,13 @@ private fun PortraitLyricsTitle(song: SongUi) {
                     "song_title_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .padding(top = 8.dp)
+                .conditional(!compact) { padding(top = 8.dp) }
                 .basicMarquee(),
     )
 
     Text(
         text = song.artists,
-        style = MaterialTheme.typography.titleMedium,
-        fontFamily = flexFontRounded(),
+        style = artistStyle.copy(fontFamily = flexFontRounded()),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
