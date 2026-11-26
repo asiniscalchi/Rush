@@ -798,15 +798,12 @@ private fun PortraitLyricsHeader(
                 }
             }
         }
-    // Factories are remembered outside the measure block and the per-pass inputs go through a
-    // cache, so the slots get the same content instance on every measure pass with unchanged
-    // inputs. A fresh lambda each pass would re-subcompose the slots every frame while the
-    // constraints animate (e.g. the album art expanding above the header).
-    val titleFactory: @Composable (Boolean, Unit) -> Unit =
-        remember(song) {
-            { marquee, _ -> Column { PortraitLyricsTitle(song = song, marquee = marquee) } }
-        }
-    val titleSlot = remember { StableSlotContent<Boolean, Unit>() }
+    // Slot content is remembered outside the measure block (the actions through a cache of their
+    // per-pass inputs), so the slots get the same content instance on every measure pass with
+    // unchanged inputs. A fresh lambda each pass would re-subcompose the slots every frame while
+    // the constraints animate (e.g. the album art expanding above the header).
+    val titleContent: @Composable () -> Unit =
+        remember(song) { { Column { PortraitLyricsTitle(song = song) } } }
     val actionsFactory: @Composable (Float, Boolean) -> Unit =
         remember(controlsVisible, actionsState, actions) {
             { actionScale, scrollActions ->
@@ -850,7 +847,7 @@ private fun PortraitLyricsHeader(
                 }
             }
         }
-    val actionsSlot = remember { StableSlotContent<Float, Boolean>() }
+    val actionsSlot = remember { StableActionsContent() }
     SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
         // Reserve the widest action variant so toggling visibility or selection does not resize
         // the strip and make Fit to screen re-run its fitter.
@@ -870,10 +867,8 @@ private fun PortraitLyricsHeader(
         val actionsHeight = (actionRows.maxOf { it.height } * actionScale).roundToInt()
         val titleWidth =
             (constraints.maxWidth - actionsWidth - actionGap.roundToPx()).coerceAtLeast(0)
-        // Keep the title composed at zero width for a stable height and shared bounds, but stop
-        // the marquee so it does not keep animating invisible text.
         val title =
-            subcompose("title", titleSlot.get(titleFactory, titleWidth > 0, Unit))
+            subcompose("title", titleContent)
                 .single()
                 .measure(
                     Constraints(
@@ -898,34 +893,40 @@ private fun PortraitLyricsHeader(
 }
 
 /**
- * Returns the same slot content while its factory and inputs are unchanged, so SubcomposeLayout
- * skips recomposing the slot on measure passes that only change constraints. New inputs yield new
- * content in the same pass, so crossing a threshold never shows a stale frame. Plain fields rather
- * than State: this is written from the measure block, where state writes would cause invalidations.
+ * Returns the same actions slot content while its factory and inputs are unchanged, so
+ * SubcomposeLayout skips recomposing the slot on measure passes that only change constraints. New
+ * inputs yield new content, which takes effect in the same pass when Compose consumes the new
+ * lambda; under lookahead the approach pass may overwrite the single cached entry, which only costs
+ * the optimisation and never correctness. Plain fields rather than State: this is written from the
+ * measure block, where state writes would cause invalidations.
  */
-private class StableSlotContent<A, B> {
-    private var factory: (@Composable (A, B) -> Unit)? = null
-    private var a: A? = null
-    private var b: B? = null
+private class StableActionsContent {
+    private var factory: (@Composable (Float, Boolean) -> Unit)? = null
+    private var scale = 0f
+    private var scroll = false
     private var content: (@Composable () -> Unit)? = null
 
-    fun get(factory: @Composable (A, B) -> Unit, a: A, b: B): @Composable () -> Unit {
+    fun get(
+        factory: @Composable (Float, Boolean) -> Unit,
+        scale: Float,
+        scroll: Boolean,
+    ): @Composable () -> Unit {
         content
-            ?.takeIf { factory === this.factory && a == this.a && b == this.b }
+            ?.takeIf { factory === this.factory && scale == this.scale && scroll == this.scroll }
             ?.let {
                 return it
             }
-        val newContent: @Composable () -> Unit = { factory(a, b) }
+        val newContent: @Composable () -> Unit = { factory(scale, scroll) }
         this.factory = factory
-        this.a = a
-        this.b = b
+        this.scale = scale
+        this.scroll = scroll
         content = newContent
         return newContent
     }
 }
 
 @Composable
-private fun PortraitLyricsTitle(song: SongUi, marquee: Boolean) {
+private fun PortraitLyricsTitle(song: SongUi) {
     Text(
         text = song.title,
         style = MaterialTheme.typography.titleLarge.copy(fontFamily = flexFontRounded()),
@@ -936,7 +937,7 @@ private fun PortraitLyricsTitle(song: SongUi, marquee: Boolean) {
                     "song_title_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .conditional(marquee) { basicMarquee() },
+                .basicMarquee(),
     )
 
     Text(
@@ -949,7 +950,7 @@ private fun PortraitLyricsTitle(song: SongUi, marquee: Boolean) {
                     "song_artist_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .conditional(marquee) { basicMarquee() },
+                .basicMarquee(),
     )
 }
 
