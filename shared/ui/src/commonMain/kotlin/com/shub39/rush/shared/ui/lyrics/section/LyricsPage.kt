@@ -71,27 +71,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.SubcomposeLayout
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.tooling.preview.PreviewWrapper
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import com.shub39.rush.shared.core.dataclasses.ExtractedColors
 import com.shub39.rush.shared.core.dataclasses.Lyric
@@ -139,7 +131,6 @@ import com.shub39.rush.shared.ui.rushmode.RushState
 import com.shub39.rush.shared.ui.session.SessionState
 import com.shub39.rush.shared.ui.theme.flexFontRounded
 import com.shub39.rush.shared.ui.toAlignment
-import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
@@ -358,22 +349,60 @@ fun LyricsPageContent(
                                                     }
                                                 }
 
-                                                PortraitLyricsHeader(
-                                                    song = lyricsState.song,
-                                                    controlsVisible = controlsVisible,
-                                                    actionsState = actionsState,
-                                                ) { headerActionsState ->
-                                                    Actions(
-                                                        state = headerActionsState,
-                                                        action = action,
-                                                        notificationAccess = notificationAccess,
-                                                        cardBackground = cardBackground,
-                                                        cardContent = cardContent,
-                                                        onShare = onShare,
-                                                        onEdit = onNavigateToCustomisations,
-                                                        isCustomisationsOpened =
-                                                            isCustomisationsOpened,
-                                                    )
+                                                Text(
+                                                    text = lyricsState.song.title,
+                                                    style =
+                                                        MaterialTheme.typography.headlineMedium
+                                                            .copy(fontFamily = flexFontRounded()),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier =
+                                                        Modifier.rushSharedBounds(
+                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                boundsTransform =
+                                                                    getTextBoundsTransform(),
+                                                            )
+                                                            .padding(top = 8.dp)
+                                                            .basicMarquee(),
+                                                )
+
+                                                Text(
+                                                    text = lyricsState.song.artists,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontFamily = flexFontRounded(),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier =
+                                                        Modifier.rushSharedBounds(
+                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
+                                                                boundsTransform =
+                                                                    getTextBoundsTransform(),
+                                                            )
+                                                            .basicMarquee(),
+                                                )
+
+                                                // Actions Row
+                                                AnimatedVisibility(visible = controlsVisible) {
+                                                    Row(
+                                                        modifier =
+                                                            Modifier.padding(vertical = 8.dp)
+                                                                .animateContentSize()
+                                                                .horizontalScroll(
+                                                                    rememberScrollState()
+                                                                )
+                                                    ) {
+                                                        Actions(
+                                                            state = actionsState,
+                                                            action = action,
+                                                            notificationAccess = notificationAccess,
+                                                            cardBackground = cardBackground,
+                                                            cardContent = cardContent,
+                                                            onShare = onShare,
+                                                            onEdit = onNavigateToCustomisations,
+                                                            isCustomisationsOpened =
+                                                                isCustomisationsOpened,
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -768,191 +797,6 @@ fun LyricsPageContent(
             )
         }
     }
-
-@Composable
-private fun PortraitLyricsHeader(
-    song: SongUi,
-    controlsVisible: Boolean,
-    actionsState: ActionsState,
-    actions: @Composable (ActionsState) -> Unit,
-) {
-    val actionGap = 8.dp
-    // Strip fields that do not affect button count or size so measurement only re-runs when the
-    // available action set can actually change.
-    val unselectedActionsState =
-        actionsState.copy(
-            song = null,
-            selectedLines = emptyMap(),
-            rushEnabled = false,
-            fitToScreen = false,
-        )
-    val measureActions: @Composable () -> Unit =
-        remember(unselectedActionsState, actions) {
-            {
-                // Share and Close replace other buttons on selection. Which row is wider depends on
-                // the source and sync state, so reserve room for both. Clear semantics because
-                // these measuring rows are never placed and must not emit duplicate nodes.
-                Row(Modifier.clearAndSetSemantics {}) { actions(unselectedActionsState) }
-                Row(Modifier.clearAndSetSemantics {}) {
-                    actions(unselectedActionsState.copy(selectedLines = mapOf(0 to "")))
-                }
-            }
-        }
-    // Slot content is remembered outside the measure block (the actions through a cache of their
-    // per-pass inputs), so the slots get the same content instance on every measure pass with
-    // unchanged inputs. A fresh lambda each pass would re-subcompose the slots every frame while
-    // the constraints animate (e.g. the album art expanding above the header).
-    val titleContent: @Composable () -> Unit =
-        remember(song) { { Column { PortraitLyricsTitle(song = song) } } }
-    val actionsFactory: @Composable (Float, Boolean) -> Unit =
-        remember(controlsVisible, actionsState, actions) {
-            { actionScale, scrollActions ->
-                val scaleOrigin =
-                    if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else 0f
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                    AnimatedVisibility(
-                        visible = controlsVisible,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        val scrollState = rememberScrollState()
-                        Row(
-                            Modifier.conditional(scrollActions) {
-                                    horizontalScroll(scrollState, reverseScrolling = true)
-                                }
-                                .conditional(actionScale < 1f) {
-                                    // Report the scaled bounds so the row fits while the layer
-                                    // transforms drawing and hit testing together.
-                                    layout { measurable, _ ->
-                                            val row = measurable.measure(Constraints())
-                                            val width = (row.width * actionScale).roundToInt()
-                                            val height = (row.height * actionScale).roundToInt()
-                                            layout(width, height) {
-                                                row.placeRelative(
-                                                    width - row.width,
-                                                    (height - row.height) / 2,
-                                                )
-                                            }
-                                        }
-                                        .graphicsLayer {
-                                            scaleX = actionScale
-                                            scaleY = actionScale
-                                            transformOrigin = TransformOrigin(scaleOrigin, 0.5f)
-                                        }
-                                }
-                        ) {
-                            actions(actionsState)
-                        }
-                    }
-                }
-            }
-        }
-    val actionsSlot = remember { StableActionsContent() }
-    SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
-        // Reserve the widest action variant so toggling visibility or selection does not resize
-        // the strip and make Fit to screen re-run its fitter.
-        val actionRows = subcompose("actionSize", measureActions).map { it.measure(Constraints()) }
-        val naturalActionsWidth = actionRows.maxOf { it.width }
-        val availableActionsWidth = (constraints.maxWidth - actionGap.roundToPx()).coerceAtLeast(0)
-        val fitScale =
-            if (naturalActionsWidth > availableActionsWidth) {
-                availableActionsWidth.toFloat() / naturalActionsWidth
-            } else {
-                1f
-            }
-        val actionScale = fitScale.coerceAtLeast(0.7f)
-        val scrollActions = fitScale < actionScale
-        val actionsWidth =
-            (naturalActionsWidth * actionScale).roundToInt().coerceAtMost(availableActionsWidth)
-        val actionsHeight = (actionRows.maxOf { it.height } * actionScale).roundToInt()
-        val titleWidth =
-            (constraints.maxWidth - actionsWidth - actionGap.roundToPx()).coerceAtLeast(0)
-        val title =
-            subcompose("title", titleContent)
-                .single()
-                .measure(
-                    Constraints(
-                        minWidth = titleWidth,
-                        maxWidth = titleWidth,
-                        maxHeight = constraints.maxHeight,
-                    )
-                )
-        val visibleActions =
-            subcompose("actions", actionsSlot.get(actionsFactory, actionScale, scrollActions))
-                .single()
-                .measure(Constraints.fixed(actionsWidth, actionsHeight))
-        val headerHeight = constraints.constrainHeight(maxOf(actionsHeight, title.height))
-        layout(constraints.maxWidth, headerHeight) {
-            title.placeRelative(0, ((headerHeight - title.height) / 2).coerceAtLeast(0))
-            visibleActions.placeRelative(
-                constraints.maxWidth - actionsWidth,
-                ((headerHeight - actionsHeight) / 2).coerceAtLeast(0),
-            )
-        }
-    }
-}
-
-/**
- * Returns the same actions slot content while its factory and inputs are unchanged, so
- * SubcomposeLayout skips recomposing the slot on measure passes that only change constraints. New
- * inputs yield new content, which takes effect in the same pass when Compose consumes the new
- * lambda; under lookahead the approach pass may overwrite the single cached entry, which only costs
- * the optimisation and never correctness. Plain fields rather than State: this is written from the
- * measure block, where state writes would cause invalidations.
- */
-private class StableActionsContent {
-    private var factory: (@Composable (Float, Boolean) -> Unit)? = null
-    private var scale = 0f
-    private var scroll = false
-    private var content: (@Composable () -> Unit)? = null
-
-    fun get(
-        factory: @Composable (Float, Boolean) -> Unit,
-        scale: Float,
-        scroll: Boolean,
-    ): @Composable () -> Unit {
-        content
-            ?.takeIf { factory === this.factory && scale == this.scale && scroll == this.scroll }
-            ?.let {
-                return it
-            }
-        val newContent: @Composable () -> Unit = { factory(scale, scroll) }
-        this.factory = factory
-        this.scale = scale
-        this.scroll = scroll
-        content = newContent
-        return newContent
-    }
-}
-
-@Composable
-private fun PortraitLyricsTitle(song: SongUi) {
-    Text(
-        text = song.title,
-        style = MaterialTheme.typography.titleLarge.copy(fontFamily = flexFontRounded()),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier =
-            Modifier.rushSharedBounds(
-                    "song_title_${song.title}_${song.artists}",
-                    boundsTransform = getTextBoundsTransform(),
-                )
-                .basicMarquee(),
-    )
-
-    Text(
-        text = song.artists,
-        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = flexFontRounded()),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier =
-            Modifier.rushSharedBounds(
-                    "song_artist_${song.title}_${song.artists}",
-                    boundsTransform = getTextBoundsTransform(),
-                )
-                .basicMarquee(),
-    )
-}
 
 @PreviewWrapper(RushPreviewWrapper::class)
 @PreviewScreenSizes
