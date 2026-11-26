@@ -24,7 +24,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +79,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -354,7 +354,6 @@ fun LyricsPageContent(
 
                                                 PortraitLyricsHeader(
                                                     song = lyricsState.song,
-                                                    lyricsAlignment = lyricsAlignment,
                                                     controlsVisible = controlsVisible,
                                                     actionsState = actionsState,
                                                 ) { headerActionsState ->
@@ -764,32 +763,38 @@ fun LyricsPageContent(
         }
     }
 
-/** Minimum width reserved for the title and artist when actions sit beside them. */
-private val MinTitleWidth = 200.dp
-
 @Composable
 private fun PortraitLyricsHeader(
     song: SongUi,
-    lyricsAlignment: Alignment.Horizontal,
     controlsVisible: Boolean,
     actionsState: ActionsState,
     actions: @Composable (ActionsState) -> Unit,
 ) {
     val actionGap = 8.dp
-    val typography = MaterialTheme.typography
-    val unselectedActionsState = actionsState.copy(selectedLines = emptyMap())
+    // Strip fields that do not affect button count or size so measurement only re-runs when the
+    // available action set can actually change.
+    val unselectedActionsState =
+        actionsState.copy(
+            song = null,
+            selectedLines = emptyMap(),
+            rushEnabled = false,
+            fitToScreen = false,
+        )
     val measureActions: @Composable () -> Unit =
         remember(unselectedActionsState, actions) {
             {
-                // Share and Close replace other buttons on selection. Which row is wider
-                // depends on the source and sync state, so reserve room for both.
-                Row { actions(unselectedActionsState) }
-                Row { actions(unselectedActionsState.copy(selectedLines = mapOf(0 to ""))) }
+                // Share and Close replace other buttons on selection. Which row is wider depends on
+                // the source and sync state, so reserve room for both. Clear semantics because
+                // these measuring rows are never placed and must not emit duplicate nodes.
+                Row(Modifier.clearAndSetSemantics {}) { actions(unselectedActionsState) }
+                Row(Modifier.clearAndSetSemantics {}) {
+                    actions(unselectedActionsState.copy(selectedLines = mapOf(0 to "")))
+                }
             }
         }
-    val compactTitle: @Composable () -> Unit =
-        remember(song) { { Column { PortraitLyricsTitle(song = song, compact = true) } } }
-    val compactActions: @Composable () -> Unit =
+    val titleContent: @Composable () -> Unit =
+        remember(song) { { Column { PortraitLyricsTitle(song = song) } } }
+    val actionsContent: @Composable () -> Unit =
         remember(controlsVisible, actionsState, actions) {
             {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
@@ -805,80 +810,45 @@ private fun PortraitLyricsHeader(
                 }
             }
         }
-    val stackedHeader: @Composable () -> Unit =
-        remember(song, lyricsAlignment, controlsVisible, actionsState, actions) {
-            {
-                Column(horizontalAlignment = lyricsAlignment) {
-                    PortraitLyricsTitle(song = song, compact = false)
-                    AnimatedVisibility(visible = controlsVisible) {
-                        Row(
-                            modifier =
-                                Modifier.padding(vertical = 8.dp)
-                                    .animateContentSize()
-                                    .horizontalScroll(rememberScrollState())
-                        ) {
-                            actions(actionsState)
-                        }
-                    }
-                }
-            }
-        }
 
     SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
-        // Keep the reserved space independent of selection and the controls' visibility animation.
+        // Reserve the widest action variant and keep the height independent of controlsVisible,
+        // selection, and animation progress so Fit to screen does not re-run its fitter.
         val actionRows = subcompose("actionSize", measureActions).map { it.measure(Constraints()) }
         val actionsWidth = actionRows.maxOf { it.width }
         val actionsHeight = actionRows.maxOf { it.height }
-        val titleWidth = constraints.maxWidth - actionsWidth - actionGap.roundToPx()
-        // Check the scaled line heights without composing a second copy of the shared title.
-        val compactTextHeight =
-            typography.titleLarge.lineHeight.roundToPx() +
-                typography.bodyMedium.lineHeight.roundToPx()
-        if (
-            titleWidth >= MinTitleWidth.roundToPx() &&
-                compactTextHeight <= actionsHeight &&
-                actionsHeight <= constraints.maxHeight
-        ) {
-            val title =
-                subcompose("header", compactTitle)
-                    .single()
-                    .measure(
-                        Constraints(
-                            minWidth = titleWidth,
-                            maxWidth = titleWidth,
-                            maxHeight = actionsHeight,
-                        )
+        val titleWidth =
+            (constraints.maxWidth - actionsWidth - actionGap.roundToPx()).coerceAtLeast(0)
+        val title =
+            subcompose("title", titleContent)
+                .single()
+                .measure(
+                    Constraints(
+                        minWidth = titleWidth,
+                        maxWidth = titleWidth,
+                        maxHeight = constraints.maxHeight,
                     )
-            val visibleActions =
-                subcompose("compactActions", compactActions)
-                    .single()
-                    .measure(Constraints.fixed(actionsWidth, actionsHeight))
-            val headerHeight = constraints.constrainHeight(actionsHeight)
-            layout(constraints.maxWidth, headerHeight) {
-                title.placeRelative(0, (headerHeight - title.height) / 2)
-                visibleActions.placeRelative(
-                    constraints.maxWidth - actionsWidth,
-                    (headerHeight - actionsHeight) / 2,
                 )
-            }
-        } else {
-            val header = subcompose("header", stackedHeader).single().measure(constraints)
-            layout(header.width, header.height) { header.placeRelative(0, 0) }
+        val visibleActions =
+            subcompose("actions", actionsContent)
+                .single()
+                .measure(Constraints.fixed(actionsWidth, actionsHeight))
+        val headerHeight = constraints.constrainHeight(maxOf(actionsHeight, title.height))
+        layout(constraints.maxWidth, headerHeight) {
+            title.placeRelative(0, (headerHeight - title.height) / 2)
+            visibleActions.placeRelative(
+                constraints.maxWidth - actionsWidth,
+                (headerHeight - actionsHeight) / 2,
+            )
         }
     }
 }
 
 @Composable
-private fun PortraitLyricsTitle(song: SongUi, compact: Boolean) {
-    val titleStyle =
-        if (compact) MaterialTheme.typography.titleLarge
-        else MaterialTheme.typography.headlineMedium
-    val artistStyle =
-        if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium
-
+private fun PortraitLyricsTitle(song: SongUi) {
     Text(
         text = song.title,
-        style = titleStyle.copy(fontFamily = flexFontRounded()),
+        style = MaterialTheme.typography.titleLarge.copy(fontFamily = flexFontRounded()),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
@@ -886,13 +856,12 @@ private fun PortraitLyricsTitle(song: SongUi, compact: Boolean) {
                     "song_title_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .conditional(!compact) { padding(top = 8.dp) }
                 .basicMarquee(),
     )
 
     Text(
         text = song.artists,
-        style = artistStyle.copy(fontFamily = flexFontRounded()),
+        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = flexFontRounded()),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
