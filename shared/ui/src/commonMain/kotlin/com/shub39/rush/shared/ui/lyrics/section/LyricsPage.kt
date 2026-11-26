@@ -798,8 +798,59 @@ private fun PortraitLyricsHeader(
                 }
             }
         }
-    val titleContent: @Composable () -> Unit =
-        remember(song) { { Column { PortraitLyricsTitle(song = song) } } }
+    // Factories are remembered outside the measure block and the per-pass inputs go through a
+    // cache, so the slots get the same content instance on every measure pass with unchanged
+    // inputs. A fresh lambda each pass would re-subcompose the slots every frame while the
+    // constraints animate (e.g. the album art expanding above the header).
+    val titleFactory: @Composable (Boolean, Unit) -> Unit =
+        remember(song) {
+            { marquee, _ -> Column { PortraitLyricsTitle(song = song, marquee = marquee) } }
+        }
+    val titleSlot = remember { StableSlotContent<Boolean, Unit>() }
+    val actionsFactory: @Composable (Float, Boolean) -> Unit =
+        remember(controlsVisible, actionsState, actions) {
+            { actionScale, scrollActions ->
+                val scaleOrigin =
+                    if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else 0f
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                    AnimatedVisibility(
+                        visible = controlsVisible,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        val scrollState = rememberScrollState()
+                        Row(
+                            Modifier.conditional(scrollActions) {
+                                    horizontalScroll(scrollState, reverseScrolling = true)
+                                }
+                                .conditional(actionScale < 1f) {
+                                    // Report the scaled bounds so the row fits while the layer
+                                    // transforms drawing and hit testing together.
+                                    layout { measurable, _ ->
+                                            val row = measurable.measure(Constraints())
+                                            val width = (row.width * actionScale).roundToInt()
+                                            val height = (row.height * actionScale).roundToInt()
+                                            layout(width, height) {
+                                                row.placeRelative(
+                                                    width - row.width,
+                                                    (height - row.height) / 2,
+                                                )
+                                            }
+                                        }
+                                        .graphicsLayer {
+                                            scaleX = actionScale
+                                            scaleY = actionScale
+                                            transformOrigin = TransformOrigin(scaleOrigin, 0.5f)
+                                        }
+                                }
+                        ) {
+                            actions(actionsState)
+                        }
+                    }
+                }
+            }
+        }
+    val actionsSlot = remember { StableSlotContent<Float, Boolean>() }
     SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
         // Reserve the widest action variant so toggling visibility or selection does not resize
         // the strip and make Fit to screen re-run its fitter.
@@ -819,43 +870,10 @@ private fun PortraitLyricsHeader(
         val actionsHeight = (actionRows.maxOf { it.height } * actionScale).roundToInt()
         val titleWidth =
             (constraints.maxWidth - actionsWidth - actionGap.roundToPx()).coerceAtLeast(0)
-        val actionsContent: @Composable () -> Unit = {
-            val scaleOrigin = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else 0f
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
-                    val scrollState = rememberScrollState()
-                    Row(
-                        Modifier.conditional(scrollActions) {
-                                horizontalScroll(scrollState, reverseScrolling = true)
-                            }
-                            .conditional(actionScale < 1f) {
-                                // Report the scaled bounds so the row fits while the layer
-                                // transforms drawing and hit testing together.
-                                layout { measurable, _ ->
-                                        val row = measurable.measure(Constraints())
-                                        val width = (row.width * actionScale).roundToInt()
-                                        val height = (row.height * actionScale).roundToInt()
-                                        layout(width, height) {
-                                            row.placeRelative(
-                                                width - row.width,
-                                                (height - row.height) / 2,
-                                            )
-                                        }
-                                    }
-                                    .graphicsLayer {
-                                        scaleX = actionScale
-                                        scaleY = actionScale
-                                        transformOrigin = TransformOrigin(scaleOrigin, 0.5f)
-                                    }
-                            }
-                    ) {
-                        actions(actionsState)
-                    }
-                }
-            }
-        }
+        // Keep the title composed at zero width for a stable height and shared bounds, but stop
+        // the marquee so it does not keep animating invisible text.
         val title =
-            subcompose("title", titleContent)
+            subcompose("title", titleSlot.get(titleFactory, titleWidth > 0, Unit))
                 .single()
                 .measure(
                     Constraints(
@@ -865,7 +883,7 @@ private fun PortraitLyricsHeader(
                     )
                 )
         val visibleActions =
-            subcompose("actions", actionsContent)
+            subcompose("actions", actionsSlot.get(actionsFactory, actionScale, scrollActions))
                 .single()
                 .measure(Constraints.fixed(actionsWidth, actionsHeight))
         val headerHeight = constraints.constrainHeight(maxOf(actionsHeight, title.height))
@@ -879,8 +897,35 @@ private fun PortraitLyricsHeader(
     }
 }
 
+/**
+ * Returns the same slot content while its factory and inputs are unchanged, so SubcomposeLayout
+ * skips recomposing the slot on measure passes that only change constraints. New inputs yield new
+ * content in the same pass, so crossing a threshold never shows a stale frame. Plain fields rather
+ * than State: this is written from the measure block, where state writes would cause invalidations.
+ */
+private class StableSlotContent<A, B> {
+    private var factory: (@Composable (A, B) -> Unit)? = null
+    private var a: A? = null
+    private var b: B? = null
+    private var content: (@Composable () -> Unit)? = null
+
+    fun get(factory: @Composable (A, B) -> Unit, a: A, b: B): @Composable () -> Unit {
+        content
+            ?.takeIf { factory === this.factory && a == this.a && b == this.b }
+            ?.let {
+                return it
+            }
+        val newContent: @Composable () -> Unit = { factory(a, b) }
+        this.factory = factory
+        this.a = a
+        this.b = b
+        content = newContent
+        return newContent
+    }
+}
+
 @Composable
-private fun PortraitLyricsTitle(song: SongUi) {
+private fun PortraitLyricsTitle(song: SongUi, marquee: Boolean) {
     Text(
         text = song.title,
         style = MaterialTheme.typography.titleLarge.copy(fontFamily = flexFontRounded()),
@@ -891,7 +936,7 @@ private fun PortraitLyricsTitle(song: SongUi) {
                     "song_title_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .basicMarquee(),
+                .conditional(marquee) { basicMarquee() },
     )
 
     Text(
@@ -904,7 +949,7 @@ private fun PortraitLyricsTitle(song: SongUi) {
                     "song_artist_${song.title}_${song.artists}",
                     boundsTransform = getTextBoundsTransform(),
                 )
-                .basicMarquee(),
+                .conditional(marquee) { basicMarquee() },
     )
 }
 
