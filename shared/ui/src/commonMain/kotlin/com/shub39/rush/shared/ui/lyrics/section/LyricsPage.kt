@@ -77,6 +77,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.tooling.preview.PreviewWrapper
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.shub39.rush.shared.core.dataclasses.ExtractedColors
 import com.shub39.rush.shared.core.dataclasses.Lyric
@@ -349,60 +351,22 @@ fun LyricsPageContent(
                                                     }
                                                 }
 
-                                                Text(
-                                                    text = lyricsState.song.title,
-                                                    style =
-                                                        MaterialTheme.typography.headlineMedium
-                                                            .copy(fontFamily = flexFontRounded()),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_title_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .padding(top = 8.dp)
-                                                            .basicMarquee(),
-                                                )
-
-                                                Text(
-                                                    text = lyricsState.song.artists,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontFamily = flexFontRounded(),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier =
-                                                        Modifier.rushSharedBounds(
-                                                                "song_artist_${lyricsState.song.title}_${lyricsState.song.artists}",
-                                                                boundsTransform =
-                                                                    getTextBoundsTransform(),
-                                                            )
-                                                            .basicMarquee(),
-                                                )
-
-                                                // Actions Row
-                                                AnimatedVisibility(visible = controlsVisible) {
-                                                    Row(
-                                                        modifier =
-                                                            Modifier.padding(vertical = 8.dp)
-                                                                .animateContentSize()
-                                                                .horizontalScroll(
-                                                                    rememberScrollState()
-                                                                )
-                                                    ) {
-                                                        Actions(
-                                                            state = actionsState,
-                                                            action = action,
-                                                            notificationAccess = notificationAccess,
-                                                            cardBackground = cardBackground,
-                                                            cardContent = cardContent,
-                                                            onShare = onShare,
-                                                            onEdit = onNavigateToCustomisations,
-                                                            isCustomisationsOpened =
-                                                                isCustomisationsOpened,
-                                                        )
-                                                    }
+                                                PortraitLyricsHeader(
+                                                    song = lyricsState.song,
+                                                    lyricsAlignment = lyricsAlignment,
+                                                    controlsVisible = controlsVisible,
+                                                ) {
+                                                    Actions(
+                                                        state = actionsState,
+                                                        action = action,
+                                                        notificationAccess = notificationAccess,
+                                                        cardBackground = cardBackground,
+                                                        cardContent = cardContent,
+                                                        onShare = onShare,
+                                                        onEdit = onNavigateToCustomisations,
+                                                        isCustomisationsOpened =
+                                                            isCustomisationsOpened,
+                                                    )
                                                 }
                                             }
                                         }
@@ -797,6 +761,99 @@ fun LyricsPageContent(
             )
         }
     }
+
+/** Minimum width reserved for the title and artist when actions sit beside them. */
+private val MinTitleWidth = 200.dp
+
+@Composable
+private fun PortraitLyricsHeader(
+    song: SongUi,
+    lyricsAlignment: Alignment.Horizontal,
+    controlsVisible: Boolean,
+    actions: @Composable () -> Unit,
+) {
+    val actionGap = 8.dp
+    SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
+        // Measure the full action row even while controls are hidden so their animation cannot
+        // switch header layouts and trigger another Fit to screen calculation.
+        val naturalActions =
+            subcompose("actionWidth") { Row { actions() } }
+                .single()
+                .measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+        val actionsWidth = naturalActions.width
+        val actionsSize = Modifier.size(naturalActions.width.toDp(), naturalActions.height.toDp())
+        val actionsBesideTitle =
+            constraints.maxWidth - actionsWidth - actionGap.roundToPx() >= MinTitleWidth.roundToPx()
+        val header =
+            subcompose("header") {
+                    if (actionsBesideTitle) {
+                        val fadingActions: @Composable () -> Unit = {
+                            AnimatedVisibility(
+                                visible = controlsVisible,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                            ) {
+                                Row { actions() }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) { PortraitLyricsTitle(song) }
+                            Spacer(Modifier.width(actionGap))
+                            // Keep the title's width and the row's height stable during the fade.
+                            Box(actionsSize) { fadingActions() }
+                        }
+                    } else {
+                        Column(horizontalAlignment = lyricsAlignment) {
+                            PortraitLyricsTitle(song)
+                            AnimatedVisibility(visible = controlsVisible) {
+                                Row(
+                                    modifier =
+                                        Modifier.padding(vertical = 8.dp)
+                                            .animateContentSize()
+                                            .horizontalScroll(rememberScrollState())
+                                ) {
+                                    actions()
+                                }
+                            }
+                        }
+                    }
+                }
+                .single()
+                .measure(constraints)
+        layout(header.width, header.height) { header.placeRelative(0, 0) }
+    }
+}
+
+@Composable
+private fun PortraitLyricsTitle(song: SongUi) {
+    Text(
+        text = song.title,
+        style = MaterialTheme.typography.headlineMedium.copy(fontFamily = flexFontRounded()),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier =
+            Modifier.rushSharedBounds(
+                    "song_title_${song.title}_${song.artists}",
+                    boundsTransform = getTextBoundsTransform(),
+                )
+                .padding(top = 8.dp)
+                .basicMarquee(),
+    )
+
+    Text(
+        text = song.artists,
+        style = MaterialTheme.typography.titleMedium,
+        fontFamily = flexFontRounded(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier =
+            Modifier.rushSharedBounds(
+                    "song_artist_${song.title}_${song.artists}",
+                    boundsTransform = getTextBoundsTransform(),
+                )
+                .basicMarquee(),
+    )
+}
 
 @PreviewWrapper(RushPreviewWrapper::class)
 @PreviewScreenSizes
