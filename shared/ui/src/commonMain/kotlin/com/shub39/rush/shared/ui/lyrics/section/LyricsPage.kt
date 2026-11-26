@@ -798,8 +798,56 @@ private fun PortraitLyricsHeader(
                 }
             }
         }
+    // Slot content is remembered outside the measure block (the actions through a cache of their
+    // per-pass inputs), so the slots get the same content instance on every measure pass with
+    // unchanged inputs. A fresh lambda each pass would re-subcompose the slots every frame while
+    // the constraints animate (e.g. the album art expanding above the header).
     val titleContent: @Composable () -> Unit =
         remember(song) { { Column { PortraitLyricsTitle(song = song) } } }
+    val actionsFactory: @Composable (Float, Boolean) -> Unit =
+        remember(controlsVisible, actionsState, actions) {
+            { actionScale, scrollActions ->
+                val scaleOrigin =
+                    if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else 0f
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                    AnimatedVisibility(
+                        visible = controlsVisible,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        val scrollState = rememberScrollState()
+                        Row(
+                            Modifier.conditional(scrollActions) {
+                                    horizontalScroll(scrollState, reverseScrolling = true)
+                                }
+                                .conditional(actionScale < 1f) {
+                                    // Report the scaled bounds so the row fits while the layer
+                                    // transforms drawing and hit testing together.
+                                    layout { measurable, _ ->
+                                            val row = measurable.measure(Constraints())
+                                            val width = (row.width * actionScale).roundToInt()
+                                            val height = (row.height * actionScale).roundToInt()
+                                            layout(width, height) {
+                                                row.placeRelative(
+                                                    width - row.width,
+                                                    (height - row.height) / 2,
+                                                )
+                                            }
+                                        }
+                                        .graphicsLayer {
+                                            scaleX = actionScale
+                                            scaleY = actionScale
+                                            transformOrigin = TransformOrigin(scaleOrigin, 0.5f)
+                                        }
+                                }
+                        ) {
+                            actions(actionsState)
+                        }
+                    }
+                }
+            }
+        }
+    val actionsSlot = remember { StableActionsContent() }
     SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
         // Reserve the widest action variant so toggling visibility or selection does not resize
         // the strip and make Fit to screen re-run its fitter.
@@ -819,41 +867,6 @@ private fun PortraitLyricsHeader(
         val actionsHeight = (actionRows.maxOf { it.height } * actionScale).roundToInt()
         val titleWidth =
             (constraints.maxWidth - actionsWidth - actionGap.roundToPx()).coerceAtLeast(0)
-        val actionsContent: @Composable () -> Unit = {
-            val scaleOrigin = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else 0f
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
-                    val scrollState = rememberScrollState()
-                    Row(
-                        Modifier.conditional(scrollActions) {
-                                horizontalScroll(scrollState, reverseScrolling = true)
-                            }
-                            .conditional(actionScale < 1f) {
-                                // Report the scaled bounds so the row fits while the layer
-                                // transforms drawing and hit testing together.
-                                layout { measurable, _ ->
-                                        val row = measurable.measure(Constraints())
-                                        val width = (row.width * actionScale).roundToInt()
-                                        val height = (row.height * actionScale).roundToInt()
-                                        layout(width, height) {
-                                            row.placeRelative(
-                                                width - row.width,
-                                                (height - row.height) / 2,
-                                            )
-                                        }
-                                    }
-                                    .graphicsLayer {
-                                        scaleX = actionScale
-                                        scaleY = actionScale
-                                        transformOrigin = TransformOrigin(scaleOrigin, 0.5f)
-                                    }
-                            }
-                    ) {
-                        actions(actionsState)
-                    }
-                }
-            }
-        }
         val title =
             subcompose("title", titleContent)
                 .single()
@@ -865,7 +878,7 @@ private fun PortraitLyricsHeader(
                     )
                 )
         val visibleActions =
-            subcompose("actions", actionsContent)
+            subcompose("actions", actionsSlot.get(actionsFactory, actionScale, scrollActions))
                 .single()
                 .measure(Constraints.fixed(actionsWidth, actionsHeight))
         val headerHeight = constraints.constrainHeight(maxOf(actionsHeight, title.height))
@@ -876,6 +889,39 @@ private fun PortraitLyricsHeader(
                 ((headerHeight - actionsHeight) / 2).coerceAtLeast(0),
             )
         }
+    }
+}
+
+/**
+ * Returns the same actions slot content while its factory and inputs are unchanged, so
+ * SubcomposeLayout skips recomposing the slot on measure passes that only change constraints. New
+ * inputs yield new content, which takes effect in the same pass when Compose consumes the new
+ * lambda; under lookahead the approach pass may overwrite the single cached entry, which only costs
+ * the optimisation and never correctness. Plain fields rather than State: this is written from the
+ * measure block, where state writes would cause invalidations.
+ */
+private class StableActionsContent {
+    private var factory: (@Composable (Float, Boolean) -> Unit)? = null
+    private var scale = 0f
+    private var scroll = false
+    private var content: (@Composable () -> Unit)? = null
+
+    fun get(
+        factory: @Composable (Float, Boolean) -> Unit,
+        scale: Float,
+        scroll: Boolean,
+    ): @Composable () -> Unit {
+        content
+            ?.takeIf { factory === this.factory && scale == this.scale && scroll == this.scroll }
+            ?.let {
+                return it
+            }
+        val newContent: @Composable () -> Unit = { factory(scale, scroll) }
+        this.factory = factory
+        this.scale = scale
+        this.scroll = scroll
+        content = newContent
+        return newContent
     }
 }
 
